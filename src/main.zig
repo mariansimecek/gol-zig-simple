@@ -27,12 +27,11 @@ pub fn printGrid(grid: []const u1, width: comptime_int, height: comptime_int, it
     stdout.print("\x1B[2J\x1B[H", .{}) catch {};
     std.debug.print("Iter: {d}\n", .{iter});
     for (0..height) |y| {
-        var char_row: [width]u8 = undefined;
         for (0..width) |x| {
-            const ch = if (grid[x + (y * width)] == 1) "#" else " ";
-            char_row[x] = ch[0];
+            const ch: []const u8 = if (grid[x + (y * width)] == 1) "\x1b[7m  \x1b[0m" else "  ";
+            stdout.print("{s}", .{ch}) catch {};
         }
-        stdout.print("{s}\n", .{char_row}) catch {};
+        stdout.print("\n", .{}) catch {};
     }
 }
 
