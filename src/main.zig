@@ -1,8 +1,8 @@
 const std = @import("std");
 
 pub fn main() !void {
-    const width = 60;
-    const height = 20;
+    const width = 80;
+    const height = 80;
 
     const rand = std.crypto.random;
     var grid: [width * height]u1 = undefined;
@@ -25,14 +25,22 @@ const stdout = std.io.getStdOut().writer();
 pub fn printGrid(grid: []const u1, width: comptime_int, height: comptime_int, iter: usize) void {
     // clear terminal
     stdout.print("\x1B[2J\x1B[H", .{}) catch {};
+    var print_buffer: [(width * 2 + 1) * height * 8]u8 = undefined;
+    var print_buffer_len: usize = 0;
+
     std.debug.print("Iter: {d}\n", .{iter});
     for (0..height) |y| {
         for (0..width) |x| {
             const ch: []const u8 = if (grid[x + (y * width)] == 1) "\x1b[7m  \x1b[0m" else "  ";
-            stdout.print("{s}", .{ch}) catch {};
+            std.mem.copyForwards(u8, print_buffer[print_buffer_len..], ch);
+            print_buffer_len += ch.len;
         }
-        stdout.print("\n", .{}) catch {};
+        std.mem.copyForwards(u8, print_buffer[print_buffer_len..], "\n");
+        print_buffer_len += 1;
     }
+
+    const result = print_buffer[0..print_buffer_len];
+    stdout.print("{s}", .{result}) catch {};
 }
 
 pub fn nextStep(grid: []u1, width: comptime_int, height: comptime_int) void {
