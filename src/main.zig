@@ -6,8 +6,7 @@ pub fn main() !void {
 
     const rand = std.crypto.random;
     var grid: [width * height]u1 = undefined;
-    for (&grid, 0..) |*cell, i| {
-        _ = i;
+    for (&grid) |*cell| {
         cell.* = rand.int(u1);
     }
 
@@ -51,35 +50,23 @@ pub fn nextStep(grid: []u1, width: comptime_int, height: comptime_int) void {
         }
     }
 
+    const neighbours = [8]comptime_int{ -width - 1, -width, -width + 1, -1, 1, width - 1, width, width + 1 };
+
     for (0..height) |y| {
         for (0..width) |x| {
             const i: usize = x + (y * width);
-            var ngbs: usize = 0;
 
-            if (y > 0 and x > 0 and grid[i - width - 1] == 1) {
-                ngbs += 1;
+            var ngbs: usize = 0;
+            inline for (neighbours) |offset| {
+                const possible_index: i32 = offset + @as(i32, @intCast(i));
+                if (possible_index >= 0 and possible_index < grid.len) {
+                    const ni: usize = @intCast(possible_index);
+                    if (grid[ni] == 1) {
+                        ngbs += 1;
+                    }
+                }
             }
-            if (y > 0 and grid[i - width] == 1) {
-                ngbs += 1;
-            }
-            if (y > 0 and x < width and grid[i - width + 1] == 1) {
-                ngbs += 1;
-            }
-            if (x > 0 and grid[i - 1] == 1) {
-                ngbs += 1;
-            }
-            if (x < width - 1 and grid[i + 1] == 1) {
-                ngbs += 1;
-            }
-            if (y < height - 1 and x > 0 and grid[i + width - 1] == 1) {
-                ngbs += 1;
-            }
-            if (y < height - 1 and grid[i + width] == 1) {
-                ngbs += 1;
-            }
-            if (y < height - 1 and x < width - 1 and grid[i + width + 1] == 1) {
-                ngbs += 1;
-            }
+
             if (grid[i] == 1 and (ngbs < 2 or ngbs > 3)) {
                 buffer[i] = 0;
                 continue;

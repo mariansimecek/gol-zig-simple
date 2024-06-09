@@ -9,12 +9,16 @@
     // with this value.
     //.minimum_zig_version = "0.11.0",
 
-    // This field is optional.
-    // Each dependency must either provide a `url` and `hash`, or a `path`.
+    // this field is optional.
+    // each dependency must either provide a `url` and `hash`, or a `path`.
     // `zig build --fetch` can be used to fetch all dependencies of a package, recursively.
-    // Once all dependencies are fetched, `zig build` no longer requires
+    // once all dependencies are fetched, `zig build` no longer requires
     // internet connectivity.
     .dependencies = .{
+        .@"raylib-zig" = .{
+            .url = "https://github.com/not-nik/raylib-zig/archive/devel.tar.gz",
+            .hash = "12204a223b19043e17b79300413d02f60fc8004c0d9629b8d8072831e352a78bf212", // put the actual hash here
+        },
         // See `zig fetch --save <url>` for a command-line interface for adding dependencies.
         //.example = .{
         //    // When updating this field to a new URL, be sure to delete the corresponding
