@@ -1,18 +1,53 @@
 const std = @import("std");
+const r = @import("raylib");
 
-const WIDTH = 40;
-const HEIGHT = 40;
+const WIDTH = 600;
+const HEIGHT = 300;
 const GRID_SIZE = WIDTH * HEIGHT;
 
 pub fn main() !void {
+    const screenWidth = WIDTH * 2;
+    const screenHeight = HEIGHT * 2;
+    // r.setConfigFlags(.{ .window_resizable = true });
+    r.initWindow(screenWidth, screenHeight, "Game Of Life");
+    defer r.closeWindow();
+
+    r.setTargetFPS(60);
+
     var game: Game = undefined;
     game.init();
 
-    while (true) {
+    while (!r.windowShouldClose()) {
+        r.beginDrawing();
+        defer r.endDrawing();
+
+        const window_width = r.getRenderWidth();
+        const window_height = r.getRenderHeight();
+
+        r.clearBackground(r.Color.black);
+
+        const rect_w = @divFloor(window_width, WIDTH);
+        const rect_h = @divFloor(window_height, HEIGHT);
+
+        for (0..HEIGHT) |y| {
+            for (0..WIDTH) |x| {
+                const i: usize = x + (y * WIDTH);
+                const color: r.Color = if (game.grid[i] == 1) r.Color.green else r.Color.black;
+
+                const rect: r.Rectangle = .{ .x = @floatFromInt(@as(i32, @intCast(x)) * rect_w), .y = @floatFromInt(@as(i32, @intCast(y)) * rect_h), .width = @floatFromInt(rect_w), .height = @floatFromInt(rect_h) };
+                r.drawRectangleRec(rect, color);
+            }
+        }
+        // std.debug.print("size: {d}x{d}\n", .{ rect_w, rect_h });
         game.step();
-        try terminalPrint(&game);
-        std.time.sleep(1_000_000_00);
     }
+
+    // terminal loop
+    // while (true) {
+    //     game.step();
+    //     try terminalPrint(&game);
+    //     std.time.sleep(1_000_000_00);
+    // }
 }
 
 const Game = struct {
@@ -68,15 +103,15 @@ const Game = struct {
     }
 };
 
-pub fn terminalPrint(self: *Game) !void {
+pub fn terminalPrint(game: *Game) !void {
     const stdout = std.io.getStdOut().writer();
-    const grid = &self.grid;
+    const grid = &game.grid;
     // clear terminal
     stdout.print("\x1B[2J\x1B[H", .{}) catch {};
     var print_buffer: [(WIDTH * 2 + 1) * HEIGHT * 8]u8 = undefined;
     var print_buffer_len: usize = 0;
 
-    try stdout.print("Iter: {any}\n", .{self.iter});
+    try stdout.print("Iter: {any}\n", .{game.iter});
 
     for (0..HEIGHT) |y| {
         for (0..WIDTH) |x| {
