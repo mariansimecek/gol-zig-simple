@@ -1,80 +1,131 @@
 const std = @import("std");
 const r = @import("raylib");
+const Allocator = std.mem.Allocator;
 
-const WIDTH = 600;
-const HEIGHT = 300;
-const GRID_SIZE = WIDTH * HEIGHT;
+const rect_w = 5;
+const rect_h = 5;
 
 pub fn main() !void {
-    const screenWidth = WIDTH * 2;
-    const screenHeight = HEIGHT * 2;
-    // r.setConfigFlags(.{ .window_resizable = true });
+    const screenWidth = 400;
+    const screenHeight = 400;
+    r.setConfigFlags(.{ .window_resizable = true });
     r.initWindow(screenWidth, screenHeight, "Game Of Life");
     defer r.closeWindow();
 
     r.setTargetFPS(60);
 
-    var game: Game = undefined;
-    game.init();
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    var game: Game = try Game.init(allocator, screenWidth / rect_w, screenHeight / rect_h);
 
     while (!r.windowShouldClose()) {
         r.beginDrawing();
         defer r.endDrawing();
 
-        const window_width = r.getRenderWidth();
-        const window_height = r.getRenderHeight();
+        const window_width: usize = @intCast(r.getRenderWidth());
+        const window_height: usize = @intCast(r.getRenderHeight());
+
+        const new_grid_width = window_width / rect_w;
+        const new_grid_height = window_height / rect_h;
 
         r.clearBackground(r.Color.black);
 
-        const rect_w = @divFloor(window_width, WIDTH);
-        const rect_h = @divFloor(window_height, HEIGHT);
-
-        for (0..HEIGHT) |y| {
-            for (0..WIDTH) |x| {
-                const i: usize = x + (y * WIDTH);
+        for (0..game.grid_height) |y| {
+            for (0..game.grid_width) |x| {
+                const i: usize = x + (y * game.grid_width);
                 const color: r.Color = if (game.grid[i] == 1) r.Color.green else r.Color.black;
 
                 const rect: r.Rectangle = .{ .x = @floatFromInt(@as(i32, @intCast(x)) * rect_w), .y = @floatFromInt(@as(i32, @intCast(y)) * rect_h), .width = @floatFromInt(rect_w), .height = @floatFromInt(rect_h) };
                 r.drawRectangleRec(rect, color);
             }
         }
-        // std.debug.print("size: {d}x{d}\n", .{ rect_w, rect_h });
-        game.step();
-    }
 
-    // terminal loop
-    // while (true) {
-    //     game.step();
-    //     try terminalPrint(&game);
-    //     std.time.sleep(1_000_000_00);
-    // }
+        if (new_grid_width != game.grid_width or new_grid_height != game.grid_height) {
+            try game.resize(@max(window_width / rect_w, 1), @max(window_height / rect_h, 1));
+        }
+        try game.step();
+    }
 }
 
-const Game = struct {
-    grid: [GRID_SIZE]u1 = undefined,
-    iter: u64 = 0,
+const Grid = struct { width: usize, heigt: usize, buffer: []u1 };
 
-    fn init(self: *Game) void {
-        self.*.iter = 0;
+const Game = struct {
+    grid: []u1,
+    grid_buffer: []u1,
+    iter: u64,
+    grid_width: usize,
+    grid_height: usize,
+    allocator: Allocator,
+
+    fn init(allocator: Allocator, grid_width: usize, grid_height: usize) !Game {
+        const grid = try allocator.alloc(u1, grid_width * grid_height);
+        const grid_buffer = try allocator.alloc(u1, grid_width * grid_height);
+        for (grid_buffer) |*cell| cell.* = 0;
+
+        //Random
         const rand = std.crypto.random;
-        for (&self.grid) |*cell| {
-            cell.* = rand.int(u1);
-        }
+        for (grid) |*cell| cell.* = rand.int(u1);
+
+        return Game{ .allocator = allocator, .grid = grid, .grid_buffer = grid_buffer, .grid_width = grid_width, .grid_height = grid_height, .iter = 0 };
     }
-    fn step(self: *Game) void {
-        const grid = &self.grid;
-        var buffer: [WIDTH * HEIGHT]u1 = undefined;
-        for (0..HEIGHT) |y| {
-            for (0..WIDTH) |x| {
-                buffer[x + (y * WIDTH)] = grid[x + (y * WIDTH)];
+
+    fn resizeGrid(grid: *[]u1, width: usize, new_grid: *[]u1, new_width: usize) void {
+        const height = grid.len / width;
+        const new_height = new_grid.len / new_width;
+
+        if (new_width > width) {
+            for (0..height) |y| {
+                for (0..width) |x| {
+                    const index: usize = x + (y * width);
+                    const new_index: usize = x + (y * new_width);
+
+                    if (new_index < new_grid.len) {
+                        new_grid.*[new_index] = grid.*[index];
+                    }
+                }
+            }
+        } else {
+            for (0..new_height) |y| {
+                for (0..new_width) |x| {
+                    const index: usize = x + (y * new_width);
+                    const new_index: usize = x + (y * width);
+                    if (new_index >= grid.len) {
+                        new_grid.*[index] = 0;
+                    } else {
+                        new_grid.*[index] = grid.*[new_index];
+                    }
+                }
             }
         }
+    }
 
-        const neighbours = [8]comptime_int{ -WIDTH - 1, -WIDTH, -WIDTH + 1, -1, 1, WIDTH - 1, WIDTH, WIDTH + 1 };
+    fn resize(self: *Game, new_width: usize, new_height: usize) !void {
+        var grid_new = try self.allocator.alloc(u1, new_width * new_height);
+        var grid_buffer_new = try self.allocator.alloc(u1, new_width * new_height);
 
-        for (0..HEIGHT) |y| {
-            for (0..WIDTH) |x| {
-                const i: usize = x + (y * WIDTH);
+        resizeGrid(&self.grid, self.grid_width, &grid_new, new_width);
+        self.grid = grid_new;
+
+        resizeGrid(&self.grid_buffer, self.grid_width, &grid_buffer_new, new_width);
+        self.grid_buffer = grid_buffer_new;
+
+        self.grid_width = new_width;
+        self.grid_height = new_height;
+    }
+
+    fn step(self: *Game) !void {
+        const grid = self.grid;
+
+        const width = self.grid_width;
+        const height = self.grid_height;
+
+        const width2: i32 = @intCast(width);
+        const neighbours = [8]i32{ -width2 - 1, -width2, -width2 + 1, -1, 1, width2 - 1, width2, width2 + 1 };
+
+        for (0..height) |y| {
+            for (0..width) |x| {
+                const i: usize = x + (y * width);
 
                 var ngbs: usize = 0;
                 inline for (neighbours) |offset| {
@@ -88,41 +139,21 @@ const Game = struct {
                 }
 
                 if (grid[i] == 1 and (ngbs < 2 or ngbs > 3)) {
-                    buffer[i] = 0;
+                    self.grid_buffer[i] = 0;
                     continue;
                 }
                 if (grid[i] == 0 and ngbs == 3) {
-                    buffer[i] = 1;
+                    self.grid_buffer[i] = 1;
                     continue;
                 }
-                buffer[i] = grid[i];
+                self.grid_buffer[i] = grid[i];
             }
         }
         self.iter += 1;
-        @memcpy(grid, &buffer);
+
+        //swap buffers
+        const temp = self.grid;
+        self.grid = self.grid_buffer;
+        self.grid_buffer = temp;
     }
 };
-
-pub fn terminalPrint(game: *Game) !void {
-    const stdout = std.io.getStdOut().writer();
-    const grid = &game.grid;
-    // clear terminal
-    stdout.print("\x1B[2J\x1B[H", .{}) catch {};
-    var print_buffer: [(WIDTH * 2 + 1) * HEIGHT * 8]u8 = undefined;
-    var print_buffer_len: usize = 0;
-
-    try stdout.print("Iter: {any}\n", .{game.iter});
-
-    for (0..HEIGHT) |y| {
-        for (0..WIDTH) |x| {
-            const ch: []const u8 = if (grid[x + (y * WIDTH)] == 1) "\x1b[7m  \x1b[0m" else "  ";
-            std.mem.copyForwards(u8, print_buffer[print_buffer_len..], ch);
-            print_buffer_len += ch.len;
-        }
-        std.mem.copyForwards(u8, print_buffer[print_buffer_len..], "\n");
-        print_buffer_len += 1;
-    }
-
-    const result = print_buffer[0..print_buffer_len];
-    try stdout.print("{s}", .{result});
-}
