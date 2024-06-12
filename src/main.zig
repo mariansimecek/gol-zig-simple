@@ -15,9 +15,11 @@ pub fn main() !void {
     r.setTargetFPS(60);
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer std.debug.assert(gpa.deinit() == .ok);
     const allocator = gpa.allocator();
 
     var game: Game = try Game.init(allocator, initial_screen_width / rect_w, initial_screen_height / rect_h);
+    defer game.deinit();
 
     var mouse_pos: r.Vector2 = .{ .x = -100, .y = -100 };
 
@@ -90,6 +92,10 @@ const Game = struct {
 
         return Game{ .allocator = allocator, .grid = grid, .grid_buffer = grid_buffer, .grid_width = grid_width, .grid_height = grid_height, .iter = 0, .pause = false };
     }
+    fn deinit(self: *Game) void {
+        self.allocator.free(self.grid_buffer[0..]);
+        self.allocator.free(self.grid[0..]);
+    }
 
     fn resizeGrid(grid: *[]u1, width: usize, new_grid: *[]u1, new_width: usize) void {
         const height = grid.len / width;
@@ -126,9 +132,12 @@ const Game = struct {
         var grid_buffer_new = try self.allocator.alloc(u1, new_width * new_height);
 
         resizeGrid(&self.grid, self.grid_width, &grid_new, new_width);
+        self.allocator.free(self.grid[0..]);
+
         self.grid = grid_new;
 
         resizeGrid(&self.grid_buffer, self.grid_width, &grid_buffer_new, new_width);
+        self.allocator.free(self.grid_buffer[0..]);
         self.grid_buffer = grid_buffer_new;
 
         self.grid_width = new_width;
