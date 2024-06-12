@@ -20,14 +20,24 @@ pub fn main() !void {
     var game: Game = try Game.init(allocator, screenWidth / rect_w, screenHeight / rect_h);
 
     while (!r.windowShouldClose()) {
-        r.beginDrawing();
-        defer r.endDrawing();
+        if (r.isKeyPressed(.key_space)) {
+            game.paused = !game.paused;
+        }
 
         const window_width: usize = @intCast(r.getRenderWidth());
         const window_height: usize = @intCast(r.getRenderHeight());
 
         const new_grid_width = window_width / rect_w;
         const new_grid_height = window_height / rect_h;
+
+        if (new_grid_width != game.grid_width or new_grid_height != game.grid_height) {
+            try game.resize(@max(window_width / rect_w, 1), @max(window_height / rect_h, 1));
+        }
+
+        try game.step();
+
+        r.beginDrawing();
+        defer r.endDrawing();
 
         r.clearBackground(r.Color.black);
 
@@ -40,11 +50,6 @@ pub fn main() !void {
                 r.drawRectangleRec(rect, color);
             }
         }
-
-        if (new_grid_width != game.grid_width or new_grid_height != game.grid_height) {
-            try game.resize(@max(window_width / rect_w, 1), @max(window_height / rect_h, 1));
-        }
-        try game.step();
     }
 }
 
@@ -52,10 +57,11 @@ const Grid = struct { width: usize, heigt: usize, buffer: []u1 };
 
 const Game = struct {
     grid: []u1,
-    grid_buffer: []u1,
-    iter: u64,
     grid_width: usize,
     grid_height: usize,
+    grid_buffer: []u1,
+    paused: bool,
+    iter: u64,
     allocator: Allocator,
 
     fn init(allocator: Allocator, grid_width: usize, grid_height: usize) !Game {
@@ -67,7 +73,7 @@ const Game = struct {
         const rand = std.crypto.random;
         for (grid) |*cell| cell.* = rand.int(u1);
 
-        return Game{ .allocator = allocator, .grid = grid, .grid_buffer = grid_buffer, .grid_width = grid_width, .grid_height = grid_height, .iter = 0 };
+        return Game{ .allocator = allocator, .grid = grid, .grid_buffer = grid_buffer, .grid_width = grid_width, .grid_height = grid_height, .iter = 0, .paused = false };
     }
 
     fn resizeGrid(grid: *[]u1, width: usize, new_grid: *[]u1, new_width: usize) void {
@@ -115,6 +121,9 @@ const Game = struct {
     }
 
     fn step(self: *Game) !void {
+        if (self.paused) {
+            return;
+        }
         const grid = self.grid;
 
         const width = self.grid_width;
