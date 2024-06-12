@@ -59,8 +59,6 @@ pub fn main() !void {
                 const y_pos = @as(i32, @intCast(y)) * rect_h;
 
                 const rect: r.Rectangle = .{ .x = @floatFromInt(x_pos), .y = @floatFromInt(y_pos), .width = @floatFromInt(rect_w - 1), .height = @floatFromInt(rect_h) };
-                // _ = color;
-                // _ = rect;
 
                 r.drawRectangleRec(rect, color);
                 r.drawLine(x_pos + rect_w, y_pos, x_pos + rect_w, y_pos - rect_h, r.colorAlpha(r.Color.white, 0.1));
@@ -142,7 +140,7 @@ const Game = struct {
             for (0..self.grid_width) |x| {
                 const i: usize = x + (y * self.grid_width);
                 if (x == x_pos and y == y_pos) {
-                    self.grid[i] = 1;
+                    self.grid[i] = if (self.grid[i] == 1) 0 else 1;
                     return;
                 }
             }
