@@ -2,8 +2,8 @@ const std = @import("std");
 const r = @import("raylib");
 const Allocator = std.mem.Allocator;
 
-const rect_w = 5;
-const rect_h = 5;
+const rect_w = 10;
+const rect_h = 10;
 
 pub fn main() !void {
     const screenWidth = 400;
@@ -19,9 +19,13 @@ pub fn main() !void {
 
     var game: Game = try Game.init(allocator, screenWidth / rect_w, screenHeight / rect_h);
 
+    var mouse_pos: r.Vector2 = .{ .x = -100, .y = -100 };
+
     while (!r.windowShouldClose()) {
+        mouse_pos = r.getMousePosition();
+
         if (r.isKeyPressed(.key_space)) {
-            game.paused = !game.paused;
+            game.pause = !game.pause;
         }
 
         const window_width: usize = @intCast(r.getRenderWidth());
@@ -35,6 +39,12 @@ pub fn main() !void {
         }
 
         try game.step();
+        if (r.isMouseButtonDown(.mouse_button_left) and mouse_pos.x > 0 and mouse_pos.y > 0) {
+            const x: usize = @intFromFloat(@divTrunc(mouse_pos.x, rect_w));
+            const y: usize = @intFromFloat(@divTrunc(mouse_pos.y, rect_w));
+
+            game.drawCell(x, y);
+        }
 
         r.beginDrawing();
         defer r.endDrawing();
@@ -60,7 +70,7 @@ const Game = struct {
     grid_width: usize,
     grid_height: usize,
     grid_buffer: []u1,
-    paused: bool,
+    pause: bool,
     iter: u64,
     allocator: Allocator,
 
@@ -73,7 +83,7 @@ const Game = struct {
         const rand = std.crypto.random;
         for (grid) |*cell| cell.* = rand.int(u1);
 
-        return Game{ .allocator = allocator, .grid = grid, .grid_buffer = grid_buffer, .grid_width = grid_width, .grid_height = grid_height, .iter = 0, .paused = false };
+        return Game{ .allocator = allocator, .grid = grid, .grid_buffer = grid_buffer, .grid_width = grid_width, .grid_height = grid_height, .iter = 0, .pause = false };
     }
 
     fn resizeGrid(grid: *[]u1, width: usize, new_grid: *[]u1, new_width: usize) void {
@@ -120,8 +130,20 @@ const Game = struct {
         self.grid_height = new_height;
     }
 
+    fn drawCell(self: *Game, x_pos: usize, y_pos: usize) void {
+        for (0..self.grid_height) |y| {
+            for (0..self.grid_width) |x| {
+                const i: usize = x + (y * self.grid_width);
+                if (x == x_pos and y == y_pos) {
+                    self.grid[i] = 1;
+                    return;
+                }
+            }
+        }
+    }
+
     fn step(self: *Game) !void {
-        if (self.paused) {
+        if (self.pause) {
             return;
         }
         const grid = self.grid;
