@@ -2,14 +2,14 @@ const std = @import("std");
 const r = @import("raylib");
 const Allocator = std.mem.Allocator;
 
-const rect_w = 10;
-const rect_h = 10;
+const rect_w = 20;
+const rect_h = 20;
+const initial_screen_width = 800;
+const initial_screen_height = 400;
 
 pub fn main() !void {
-    const screenWidth = 400;
-    const screenHeight = 400;
     r.setConfigFlags(.{ .window_resizable = true });
-    r.initWindow(screenWidth, screenHeight, "Game Of Life");
+    r.initWindow(initial_screen_width, initial_screen_height, "Game Of Life");
     defer r.closeWindow();
 
     r.setTargetFPS(60);
@@ -17,7 +17,7 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    var game: Game = try Game.init(allocator, screenWidth / rect_w, screenHeight / rect_h);
+    var game: Game = try Game.init(allocator, initial_screen_width / rect_w, initial_screen_height / rect_h);
 
     var mouse_pos: r.Vector2 = .{ .x = -100, .y = -100 };
 
@@ -39,11 +39,10 @@ pub fn main() !void {
         }
 
         try game.step();
+        const x_mouse_pos_cell: usize = @intFromFloat(@divTrunc(mouse_pos.x, rect_w));
+        const y_mouse_pos_cell: usize = @intFromFloat(@divTrunc(mouse_pos.y, rect_w));
         if (r.isMouseButtonDown(.mouse_button_left) and mouse_pos.x > 0 and mouse_pos.y > 0) {
-            const x: usize = @intFromFloat(@divTrunc(mouse_pos.x, rect_w));
-            const y: usize = @intFromFloat(@divTrunc(mouse_pos.y, rect_w));
-
-            game.drawCell(x, y);
+            game.drawCell(x_mouse_pos_cell, y_mouse_pos_cell);
         }
 
         r.beginDrawing();
@@ -54,11 +53,19 @@ pub fn main() !void {
         for (0..game.grid_height) |y| {
             for (0..game.grid_width) |x| {
                 const i: usize = x + (y * game.grid_width);
-                const color: r.Color = if (game.grid[i] == 1) r.Color.green else r.Color.black;
+                const color: r.Color = if (game.grid[i] == 1) r.Color.green else if (x == x_mouse_pos_cell and y == y_mouse_pos_cell) r.colorAlpha(r.Color.white, 0.3) else r.Color.black;
 
-                const rect: r.Rectangle = .{ .x = @floatFromInt(@as(i32, @intCast(x)) * rect_w), .y = @floatFromInt(@as(i32, @intCast(y)) * rect_h), .width = @floatFromInt(rect_w), .height = @floatFromInt(rect_h) };
+                const x_pos = @as(i32, @intCast(x)) * rect_w;
+                const y_pos = @as(i32, @intCast(y)) * rect_h;
+
+                const rect: r.Rectangle = .{ .x = @floatFromInt(x_pos), .y = @floatFromInt(y_pos), .width = @floatFromInt(rect_w - 1), .height = @floatFromInt(rect_h) };
+                // _ = color;
+                // _ = rect;
+
                 r.drawRectangleRec(rect, color);
+                r.drawLine(x_pos + rect_w, y_pos, x_pos + rect_w, y_pos - rect_h, r.colorAlpha(r.Color.white, 0.1));
             }
+            r.drawLine(0, @intCast(y * rect_h), @intCast(window_width), @intCast(y * rect_h), r.colorAlpha(r.Color.white, 0.1));
         }
     }
 }
