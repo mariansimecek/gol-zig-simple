@@ -2,10 +2,10 @@ const std = @import("std");
 const r = @import("raylib");
 const Allocator = std.mem.Allocator;
 
-const rect_w = 20;
-const rect_h = 20;
-const initial_screen_width = 800;
-const initial_screen_height = 400;
+const rect_w = 8;
+const rect_h = 8;
+const initial_screen_width = 1200;
+const initial_screen_height = 800;
 const window_title = "Game Of Life";
 
 pub fn main() !void {
