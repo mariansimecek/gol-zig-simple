@@ -6,13 +6,14 @@ const rect_w = 20;
 const rect_h = 20;
 const initial_screen_width = 800;
 const initial_screen_height = 400;
+const window_title = "Game Of Life";
 
 pub fn main() !void {
     r.setConfigFlags(.{ .window_resizable = true });
-    r.initWindow(initial_screen_width, initial_screen_height, "Game Of Life");
+    r.initWindow(initial_screen_width, initial_screen_height, window_title);
     defer r.closeWindow();
 
-    r.setTargetFPS(60);
+    r.setTargetFPS(120);
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer std.debug.assert(gpa.deinit() == .ok);
@@ -23,12 +24,19 @@ pub fn main() !void {
 
     var mouse_pos: r.Vector2 = .{ .x = -100, .y = -100 };
 
+    const update_frequency: f32 = 0.03;
+    var timer: f32 = 0.0;
+    var paused = false;
+
     while (!r.windowShouldClose()) {
         mouse_pos = r.getMousePosition();
+        timer += r.getFrameTime();
 
         if (r.isKeyPressed(.key_space)) {
-            game.pause = !game.pause;
+            paused = !paused;
         }
+
+        if (paused) r.setWindowTitle(window_title ++ " - paused") else r.setWindowTitle(window_title);
 
         const window_width: usize = @intCast(r.getRenderWidth());
         const window_height: usize = @intCast(r.getRenderHeight());
@@ -40,11 +48,18 @@ pub fn main() !void {
             try game.resize(@max(window_width / rect_w, 1), @max(window_height / rect_h, 1));
         }
 
-        try game.step();
+        if (timer > update_frequency and !paused) {
+            timer = 0.0;
+            try game.step();
+        }
         const x_mouse_pos_cell: usize = @intFromFloat(@divTrunc(mouse_pos.x, rect_w));
         const y_mouse_pos_cell: usize = @intFromFloat(@divTrunc(mouse_pos.y, rect_w));
-        if (r.isMouseButtonDown(.mouse_button_left) and mouse_pos.x > 0 and mouse_pos.y > 0) {
-            game.drawCell(x_mouse_pos_cell, y_mouse_pos_cell);
+
+        if (r.isMouseButtonDown(.mouse_button_left) and mouse_pos.x > 0 and mouse_pos.y > 0 and !r.isKeyDown(.key_left_shift)) {
+            game.drawCell(x_mouse_pos_cell, y_mouse_pos_cell, 1);
+        }
+        if (r.isMouseButtonDown(.mouse_button_left) and mouse_pos.x > 0 and mouse_pos.y > 0 and r.isKeyDown(.key_left_shift)) {
+            game.drawCell(x_mouse_pos_cell, y_mouse_pos_cell, 0);
         }
 
         r.beginDrawing();
@@ -55,7 +70,7 @@ pub fn main() !void {
         for (0..game.grid_height) |y| {
             for (0..game.grid_width) |x| {
                 const i: usize = x + (y * game.grid_width);
-                const color: r.Color = if (game.grid[i] == 1) r.Color.green else if (x == x_mouse_pos_cell and y == y_mouse_pos_cell) r.colorAlpha(r.Color.white, 0.3) else r.Color.black;
+                const color: r.Color = if (game.grid[i] == 1) r.Color.green else if (r.isKeyDown(.key_left_shift) and x == x_mouse_pos_cell and y == y_mouse_pos_cell) r.Color.red else if (x == x_mouse_pos_cell and y == y_mouse_pos_cell) r.colorAlpha(r.Color.white, 0.3) else r.Color.black;
 
                 const x_pos = @as(i32, @intCast(x)) * rect_w;
                 const y_pos = @as(i32, @intCast(y)) * rect_h;
@@ -77,7 +92,6 @@ const Game = struct {
     grid_width: usize,
     grid_height: usize,
     grid_buffer: []u1,
-    pause: bool,
     iter: u64,
     allocator: Allocator,
 
@@ -90,7 +104,14 @@ const Game = struct {
         const rand = std.crypto.random;
         for (grid) |*cell| cell.* = rand.int(u1);
 
-        return Game{ .allocator = allocator, .grid = grid, .grid_buffer = grid_buffer, .grid_width = grid_width, .grid_height = grid_height, .iter = 0, .pause = false };
+        return Game{
+            .allocator = allocator,
+            .grid = grid,
+            .grid_buffer = grid_buffer,
+            .grid_width = grid_width,
+            .grid_height = grid_height,
+            .iter = 0,
+        };
     }
     fn deinit(self: *Game) void {
         self.allocator.free(self.grid_buffer[0..]);
@@ -144,12 +165,12 @@ const Game = struct {
         self.grid_height = new_height;
     }
 
-    fn drawCell(self: *Game, x_pos: usize, y_pos: usize) void {
+    fn drawCell(self: *Game, x_pos: usize, y_pos: usize, value: u1) void {
         for (0..self.grid_height) |y| {
             for (0..self.grid_width) |x| {
                 const i: usize = x + (y * self.grid_width);
                 if (x == x_pos and y == y_pos) {
-                    self.grid[i] = if (self.grid[i] == 1) 0 else 1;
+                    self.grid[i] = value;
                     return;
                 }
             }
@@ -157,9 +178,6 @@ const Game = struct {
     }
 
     fn step(self: *Game) !void {
-        if (self.pause) {
-            return;
-        }
         const grid = self.grid;
 
         const width = self.grid_width;
